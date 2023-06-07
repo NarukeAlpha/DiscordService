@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 )
@@ -94,8 +97,6 @@ var (
 			// Get the value from the option map.
 			// When the option exists, ok = true
 			if option, ok := optionMap["website"]; ok {
-				// Option values must be type asserted from interface{}.
-				// Discordgo provides utility functions to make this simple.
 				margs = append(margs, option.StringValue())
 				msgformat += "> string-option: %s\n"
 			}
@@ -106,16 +107,29 @@ var (
 			}
 
 			if option, ok := optionMap["name"]; ok {
-				// Option values must be type asserted from interface{}.
-				// Discordgo provides utility functions to make this simple.
+				margs = append(margs, option.StringValue())
+				msgformat += "> string-option: %s\n"
+			}
+			if option, ok := optionMap["release-method"]; ok {
 				margs = append(margs, option.StringValue())
 				msgformat += "> string-option: %s\n"
 			}
 
-			channel, err := s.Channel(i.ChannelID)
-			if err != nil {
-				log.Println(err)
+			//channel, err := s.Channel(i.ChannelID)
+			//if err != nil {
+			//	log.Println(err)
+			//}
+			//guild, err := s.Guild(i.GuildID)
+			intconv := int(margs[1].(int64))
+			var entry MangaEntry = MangaEntry{
+				Did:          0,
+				Dmanga:       margs[2].(string),
+				DlastChapter: intconv,
+				Dmonitoring:  true,
+				DchapterLink: margs[0].(string),
+				Didentifier:  margs[3].(string),
 			}
+			MangaUpdate(entry)
 
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				// Ignore type for now, they will be discussed in "responses"
@@ -185,4 +199,27 @@ func main() {
 	}
 
 	log.Println("Gracefully shutting down.")
+}
+
+func MangaUpdate(manga MangaEntry) {
+	log.Println("Manga being sent to SQL server : %v", manga)
+	mangaJson, err := json.Marshal(manga)
+	if err != nil {
+		log.Println(err)
+	}
+	r, err := http.NewRequest("POST", "http://localhost:8080/MangaList", bytes.NewBuffer(mangaJson))
+	if err != nil {
+
+		log.Println(err)
+	}
+	defer r.Body.Close()
+	r.Header.Set("Content-Type", "application/json")
+	clnt := http.DefaultClient
+	resp, err := clnt.Do(r)
+	if err != nil {
+		log.Println(err)
+
+	}
+	defer resp.Body.Close()
+	//built in a response reader, to be used later for feature completion.
 }
